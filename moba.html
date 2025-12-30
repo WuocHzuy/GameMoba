@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Minimal 5v5 MOBA Prototype</title>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --panel: #16181d;
+    --panel-border: #242832;
+    --blue: #4aa3ff;
+    --red: #ff6b6b;
+    --neutral: #b3b3b3;
+    --hp-green: #35d07f;
+    --hp-bg: #333b47;
+    --gold: #ffd166;
+    --white: #eaeef5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--white);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+
+  header, footer {
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 10px 16px;
+  }
+  footer { border-top: 1px solid var(--panel-border); border-bottom: none; }
+
+  header .title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header .title h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  header .title .badges {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #1e222b;
+    border: 1px solid var(--panel-border);
+    color: var(--neutral);
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .sidepanel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+  }
+
+  .sidepanel h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--neutral);
+  }
+
+  .hud {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    overflow: auto;
+  }
+
+  .hud .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .hud .bar {
+    height: 6px;
+    background: var(--hp-bg);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .hud .bar > div {
+    height: 100%;
+    background: var(--hp-green);
+    width: 100%;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    background: #0b0d10;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #121417;
+    cursor: crosshair;
+  }
+
+  .overlay {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    font-size: 12px;
+    backdrop-filter: blur(6px);
+  }
+  .overlay b { color: var(--gold); }
+
+  .scoreboard {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .tile {
+    background: #1a1d23;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 12px;
+  }
+  .tile .team {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    display: inline-block;
+  }
+  .dot.blue { background: var(--blue); }
+  .dot.red { background: var(--red); }
+
+  .controls {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .controls code {
+    background: #20242c;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 0 4px;
+    color: var(--gold);
+  }
+
+  footer .note {
+    font-size: 12px;
+    color: var(--neutral);
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <h1>Minimal 5v5 MOBA Prototype</h1>
+      <div class="badges">
+        <span class="badge">Canvas</span>
+        <span class="badge">No libraries</span>
+        <span class="badge">Single file</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <aside class="sidepanel">
+      <h2>Player stats</h2>
+      <div class="hud" id="hud">
+        <div class="row"><span>Hero</span><span id="heroName">Leader</span></div>
+        <div class="row"><span>Level</span><span id="heroLevel">1</span></div>
+        <div class="row"><span>Gold</span><span id="heroGold">0</span></div>
+        <div class="row"><span>K/D/A</span><span id="heroKDA">0/0/0</span></div>
+        <div class="row"><span>HP</span><span id="heroHPLabel">100 / 100</span></div>
+        <div class="bar"><div id="heroHPBar" style="width:100%;"></div></div>
+        <div class="row"><span>Mana</span><span id="heroManaLabel">50 / 50</span></div>
+        <div class="bar"><div id="heroManaBar" style="width:100%; background:#4aa3ff;"></div></div>
+        <div class="tile">
+          <div class="team"><span class="dot blue"></span>Blue team</div>
+          <div class="scoreboard" id="blueBoard"></div>
+        </div>
+        <div class="tile">
+          <div class="team"><span class="dot red"></span>Red team</div>
+          <div class="scoreboard" id="redBoard"></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="1200" height="700"></canvas>
+      <div class="overlay">
+        <div><b>Controls:</b> Left click to move • Q: skillshot • E: dash • F: follow/attack • P: pause</div>
+      </div>
+    </div>
+
+    <aside class="sidepanel">
+      <h2>Match info</h2>
+      <div class="hud">
+        <div class="row"><span>Time</span><span id="clock">00:00</span></div>
+        <div class="row"><span>Blue kills</span><span id="blueKills">0</span></div>
+        <div class="row"><span>Red kills</span><span id="redKills">0</span></div>
+        <div class="row"><span>Blue base HP</span><span id="blueBaseHP">2000</span></div>
+        <div class="row"><span>Red base HP</span><span id="redBaseHP">2000</span></div>
+        <div class="tile controls">
+          <div><code>Click</code> move to target</div>
+          <div><code>Q</code> fire skillshot toward cursor</div>
+          <div><code>E</code> dash toward cursor (costs mana)</div>
+          <div><code>F</code> toggle aggressive follow</div>
+          <div><code>P</code> pause/unpause</div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="note">Prototype only: simple AI, respawns, win by destroying enemy base. Feel what "moment-to-moment" can be before polish.</div>
+  </footer>
+
+<script>
+(() => {
+  // ---- Config ----
+  const CFG = {
+    mapW: 1200, mapH: 700,
+    lanePadding: 90,
+    baseHP: 2000,
+    hero: {
+      radius: 16,
+      speed: 2.2,
+      maxHP: 100,
+      maxMana: 50,
+      regenHP: 0.02,
+      regenMana: 0.05,
+      attackRange: 120,
+      attackDamage: 12,
+      attackCooldown: 800, // ms
+      respawnTime: 5000,   // ms
+    },
+    skillQ: {
+      speed: 6,
+      width: 6,
+      length: 12,
+      damage: 35,
+      cooldown: 2000,
+      manaCost: 15,
+    },
+    dashE: {
+      distance: 120,
+      cooldown: 3000,
+      manaCost: 10,
+    },
+    tower: {
+      range: 200,
+      damage: 20,
+      cooldown: 900,
+      radius: 18,
+      hp: 400,
+    },
+    minion: {
+      radius: 10,
+      speed: 1.3,
+      maxHP: 40,
+      damage: 8,
+      attackRange: 70,
+      attackCooldown: 900,
+      waveInterval: 12000,
+      perWave: 4,
+    }
+  };
+
+  // ---- State ----
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const HUD = {
+    heroName: document.getElementById('heroName'),
+    heroLevel: document.getElementById('heroLevel'),
+    heroGold: document.getElementById('heroGold'),
+    heroKDA: document.getElementById('heroKDA'),
+    heroHPLabel: document.getElementById('heroHPLabel'),
+    heroHPBar: document.getElementById('heroHPBar'),
+    heroManaLabel: document.getElementById('heroManaLabel'),
+    heroManaBar: document.getElementById('heroManaBar'),
+    blueBoard: document.getElementById('blueBoard'),
+    redBoard: document.getElementById('redBoard'),
+    clock: document.getElementById('clock'),
+    blueKills: document.getElementById('blueKills'),
+    redKills: document.getElementById('redKills'),
+    blueBaseHP: document.getElementById('blueBaseHP'),
+    redBaseHP: document.getElementById('redBaseHP'),
+  };
+
+  const teams = { BLUE: 'BLUE', RED: 'RED' };
+  let paused = false;
+  let matchStart = performance.now();
+  let lastWave = performance.now();
+
+  // ---- Utility ----
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const angleTo = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+  const now = () => performance.now();
+
+  // ---- Entities ----
+  class Unit {
+    constructor(opts) {
+      Object.assign(this, opts);
+      this.maxHP = this.maxHP ?? CFG.hero.maxHP;
+      this.hp = this.hp ?? this.maxHP;
+      this.maxMana = this.maxMana ?? CFG.hero.maxMana;
+      this.mana = this.mana ?? this.maxMana;
+      this.attackTimer = 0;
+      this.dead = false;
+      this.respawnAt = 0;
+      this.target = null;
+      this.followAggro = false;
+      this.gold = 0;
+      this.kills = 0;
+      this.deaths = 0;
+      this.assists = 0;
+      this.name = this.name ?? (this.team === teams.BLUE ? 'Blue Hero' : 'Red Hero');
+    }
+    canAttack() { return now() > this.attackTimer; }
+    tryAttack(units, towers, bases) {
+      if (this.dead) return;
+      const enemies = [...units, ...towers].filter(u => u.team !== this.team && !u.dead);
+      let nearest = null, dmin = Infinity;
+      for (const e of enemies) {
+        const d = dist(this, e);
+        if (d < CFG.hero.attackRange && d < dmin) { nearest = e; dmin = d; }
+      }
+      if (nearest && this.canAttack()) {
+        nearest.hp -= this.attackDamage ?? CFG.hero.attackDamage;
+        this.attackTimer = now() + (this.attackCooldown ?? CFG.hero.attackCooldown);
+        if (nearest.hp <= 0 && !nearest.dead) {
+          nearest.dead = true;
+          if (nearest.isTower) nearest.hp = 0;
+          if (nearest.isUnit) nearest.respawnAt = now() + (nearest.respawnTime ?? CFG.hero.respawnTime);
+          if (this.team === teams.BLUE) blueKills++; else redKills++;
+          this.kills++; this.gold += 30;
+          nearest.deaths++;
+        }
+      }
+    }
+    moveTo(dt) {
+      if (this.dead) return;
+      if (!this.dest) return;
+      const dx = this.dest.x - this.x, dy = this.dest.y - this.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 2) return;
+      const vx = (dx / len) * (this.speed ?? CFG.hero.speed);
+      const vy = (dy / len) * (this.speed ?? CFG.hero.speed);
+      this.x += vx * dt;
+      this.y += vy * dt;
+    }
+    regen(dt) {
+      if (this.dead) return;
+      this.hp = clamp(this.hp + CFG.hero.regenHP * dt, 0, this.maxHP);
+      this.mana = clamp(this.mana + CFG.hero.regenMana * dt, 0, this.maxMana);
+    }
+    tickAI(units, bases) {
+      if (this.isPlayer) return;
+      if (this.dead) return;
+      // Simple AI: seek nearest visible enemy, else march toward enemy base
+      const enemies = units.filter(u => u.team !== this.team && !u.dead);
+      let nearest = null, dmin = Infinity;
+      for (const e of enemies) {
+        const d = dist(this, e);
+        if (d < dmin) { nearest = e; dmin = d; }
+      }
+      const targetBase = this.team === teams.BLUE ? bases.RED : bases.BLUE;
+      if (nearest && dmin < 180) {
+        // Chase if close
+        this.dest = { x: nearest.x, y: nearest.y };
+      } else {
+        // March to enemy base
+        const laneY = (this.team === teams.BLUE) ? (CFG.mapH - CFG.lanePadding) : CFG.lanePadding;
+        this.dest = { x: targetBase.x, y: laneY };
+      }
+    }
+  }
+
+  class Tower {
+    constructor(opts) {
+      Object.assign(this, opts);
+      this.isTower = true;
+      this.hp = this.hp ?? CFG.tower.hp;
+      this.radius = CFG.tower.radius;
+      this.cooldown = 0;
+      this.dead = false;
+    }
+    tick(units) {
+      if (this.dead) return;
+      if (now() < this.cooldown) return;
+      let nearest = null, dmin = Infinity;
+      for (const u of units) {
+        if (u.team === this.team || u.dead) continue;
+        const d = dist(this, u);
+        if (d < CFG.tower.range && d < dmin) { nearest = u; dmin = d; }
+      }
+      if (nearest) {
+        nearest.hp -= CFG.tower.damage;
+        this.cooldown = now() + CFG.tower.cooldown;
+        if (nearest.hp <= 0 && !nearest.dead) {
+          nearest.dead = true;
+          nearest.deaths++;
+          nearest.respawnAt = now() + (nearest.respawnTime ?? CFG.hero.respawnTime);
+          if (this.team === teams.BLUE) blueKills++; else redKills++;
+        }
+      }
+    }
+  }
+
+  class Projectile {
+    constructor(opts) { Object.assign(this, opts); }
+    tick(dt, units, towers, bases) {
+      if (this.dead) return;
+      this.x += Math.cos(this.angle) * this.speed * dt;
+      this.y += Math.sin(this.angle) * this.speed * dt;
+      this.life -= dt;
+      if (this.life <= 0) { this.dead = true; return; }
+
+      const candidates = [...units, ...towers];
+      for (const c of candidates) {
+        if (c.team === this.team || c.dead) continue;
+        const d = dist(this, c);
+        if (d < (c.radius ?? 14) + this.radius) {
+          c.hp -= this.damage;
+          this.dead = true;
+          if (c.hp <= 0 && !c.dead) {
+            c.dead = true;
+            if (c.isTower) c.hp = 0;
+            if (c.isUnit) c.respawnAt = now() + (c.respawnTime ?? CFG.hero.respawnTime);
+            if (this.team === teams.BLUE) blueKills++; else redKills++;
+          }
+          break;
+        }
+      }
+      // base hit
+      const enemyBase = this.team === teams.BLUE ? bases.RED : bases.BLUE;
+      const db = dist(this, enemyBase);
+      if (db < 40) {
+        enemyBase.hp -= this.damage;
+        this.dead = true;
+      }
+    }
+  }
+
+  // ---- World setup ----
+  const bases = {
+    BLUE: { x: 80, y: CFG.mapH - 80, hp: CFG.baseHP, team: teams.BLUE },
+    RED:  { x: CFG.mapW - 80, y: 80, hp: CFG.baseHP, team: teams.RED },
+  };
+
+  const units = [];
+  const towers = [];
+  const projectiles = [];
+  const minions = [];
+
+  // Create heroes
+  for (let i = 0; i < 5; i++) {
+    units.push(new Unit({
+      isUnit: true,
+      team: teams.BLUE,
+      x: 120 + i * 26,
+      y: CFG.mapH - 140 - i * 18,
+      speed: CFG.hero.speed,
+      name: i === 0 ? 'Leader' : `Blue ${i+1}`,
+      isPlayer: i === 0
+    }));
+  }
+  for (let i = 0; i < 5; i++) {
+    units.push(new Unit({
+      isUnit: true,
+      team: teams.RED,
+      x: CFG.mapW - 120 - i * 26,
+      y: 140 + i * 18,
+      speed: CFG.hero.speed,
+      name: `Red ${i+1}`,
+      isPlayer: false
+    }));
+  }
+
+  const player = units.find(u => u.isPlayer);
+
+  // Create simple lane towers (2 each)
+  towers.push(new Tower({ team: teams.BLUE, x: 260, y: CFG.mapH - 220 }));
+  towers.push(new Tower({ team: teams.BLUE, x: 380, y: CFG.mapH - 360 }));
+  towers.push(new Tower({ team: teams.RED,  x: CFG.mapW - 260, y: 220 }));
+  towers.push(new Tower({ team: teams.RED,  x: CFG.mapW - 380, y: 360 }));
+
+  // ---- Input ----
+  const mouse = { x: 0, y: 0 };
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  });
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) {
+      player.dest = { x: mouse.x, y: mouse.y };
+      player.followAggro = false;
+    }
+  });
+  window.addEventListener('keydown', e => {
+    if (e.key.toLowerCase() === 'p') paused = !paused;
+    if (e.key.toLowerCase() === 'f') player.followAggro = !player.followAggro;
+    if (e.key.toLowerCase() === 'q') castQ();
+    if (e.key.toLowerCase() === 'e') castE();
+  });
+
+  let qCooldown = 0, eCooldown = 0;
+
+  function castQ() {
+    if (player.dead) return;
+    if (now() < qCooldown) return;
+    if (player.mana < CFG.skillQ.manaCost) return;
+    player.mana -= CFG.skillQ.manaCost;
+    qCooldown = now() + CFG.skillQ.cooldown;
+    const ang = angleTo(player, mouse);
+    projectiles.push(new Projectile({
+      x: player.x, y: player.y,
+      angle: ang, speed: CFG.skillQ.speed,
+      life: 1200, radius: CFG.skillQ.width,
+      damage: CFG.skillQ.damage, team: player.team
+    }));
+  }
+
+  function castE() {
+    if (player.dead) return;
+    if (now() < eCooldown) return;
+    if (player.mana < CFG.dashE.manaCost) return;
+    player.mana -= CFG.dashE.manaCost;
+    eCooldown = now() + CFG.dashE.cooldown;
+    const ang = angleTo(player, mouse);
+    player.x += Math.cos(ang) * CFG.dashE.distance;
+    player.y += Math.sin(ang) * CFG.dashE.distance;
+    // clamp inside map
+    player.x = clamp(player.x, 20, CFG.mapW - 20);
+    player.y = clamp(player.y, 20, CFG.mapH - 20);
+  }
+
+  // ---- Minion waves ----
+  function spawnWave() {
+    const laneYBlue = CFG.mapH - CFG.lanePadding;
+    const laneYRed = CFG.lanePadding;
+    for (let i = 0; i < CFG.minion.perWave; i++) {
+      minions.push(new Unit({
+        isUnit: true,
+        team: teams.BLUE,
+        x: bases.BLUE.x + 40, y: laneYBlue,
+        speed: CFG.minion.speed,
+        radius: CFG.minion.radius,
+        maxHP: CFG.minion.maxHP, hp: CFG.minion.maxHP,
+        attackDamage: CFG.minion.damage,
+        attackRange: CFG.minion.attackRange,
+        attackCooldown: CFG.minion.attackCooldown,
+        name: 'Blue Minion',
+      }));
+      minions.push(new Unit({
+        isUnit: true,
+        team: teams.RED,
+        x: bases.RED.x - 40, y: laneYRed,
+        speed: CFG.minion.speed,
+        radius: CFG.minion.radius,
+        maxHP: CFG.minion.maxHP, hp: CFG.minion.maxHP,
+        attackDamage: CFG.minion.damage,
+        attackRange: CFG.minion.attackRange,
+        attackCooldown: CFG.minion.attackCooldown,
+        name: 'Red Minion',
+      }));
+    }
+  }
+
+  // ---- Game loop ----
+  let prev = now();
+  let blueKills = 0, redKills = 0;
+
+  function update(dt) {
+    // Waves
+    if (now() - lastWave > CFG.minion.waveInterval) {
+      spawnWave();
+      lastWave = now();
+    }
+
+    // Units AI
+    for (const u of units) {
+      if (u.dead && now() > u.respawnAt) {
+        // respawn near base
+        const b = u.team === teams.BLUE ? bases.BLUE : bases.RED;
+        u.x = b.x + (u.team === teams.BLUE ? 40 : -40);
+        u.y = u.team === teams.BLUE ? CFG.mapH - 160 : 160;
+        u.hp = u.maxHP; u.mana = u.maxMana;
+        u.dead = false;
+      }
+      u.regen(dt);
+      if (!u.isPlayer) u.tickAI(units, bases);
+      if (u.followAggro) {
+        // Player aggressive follow
+        const enemies = units.filter(e => e.team !== u.team && !e.dead);
+        let nearest = null, dmin = Infinity;
+        for (const e of enemies) {
+          const d = dist(u, e);
+          if (d < dmin) { nearest = e; dmin = d; }
+        }
+        if (nearest) u.dest = { x: nearest.x, y: nearest.y };
+      }
+      u.moveTo(dt);
+      u.tryAttack([...units, ...minions], towers, bases);
+    }
+
+    // Minions
+    for (const m of minions) {
+      if (m.dead) continue;
+      m.regen(dt * 0.2);
+      const targetBase = m.team === teams.BLUE ? bases.RED : bases.BLUE;
+      const laneY = m.team === teams.BLUE ? (CFG.mapH - CFG.lanePadding) : CFG.lanePadding;
+      m.dest = { x: targetBase.x, y: laneY };
+      m.moveTo(dt);
+      m.tryAttack([...units, ...minions], towers, bases);
+      // Base damage if close
+      const db = dist(m, targetBase);
+      if (db < 50) {
+        targetBase.hp -= CFG.minion.damage * 0.4;
+        m.hp -= 9999; // suicide on contact
+        m.dead = true;
+      }
+    }
+
+    // Towers
+    for (const t of towers) {
+      if (t.dead) continue;
+      t.tick([...units, ...minions]);
+      if (t.hp <= 0 && !t.dead) t.dead = true;
+    }
+
+    // Projectiles
+    for (const p of projectiles) {
+      if (p.dead) continue;
+      p.tick(dt, units, towers, bases);
+    }
+
+    // Cleanup dead projectiles & minions
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      if (projectiles[i].dead) projectiles.splice(i, 1);
+    }
+    for (let i = minions.length - 1; i >= 0; i--) {
+      if (minions[i].dead) minions.splice(i, 1);
+    }
+
+    // Win condition
+    if (bases.BLUE.hp <= 0 || bases.RED.hp <= 0) paused = true;
+  }
+
+  function draw() {
+    // background
+    ctx.fillStyle = '#101216';
+    ctx.fillRect(0, 0, CFG.mapW, CFG.mapH);
+
+    // lanes
+    ctx.strokeStyle = '#1f2733';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath();
+    ctx.moveTo(80, CFG.mapH - CFG.lanePadding);
+    ctx.lineTo(CFG.mapW - 80, CFG.lanePadding);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // bases
+    drawBase(bases.BLUE, '#2f6bff');
+    drawBase(bases.RED, '#ff4b4b');
+
+    // towers
+    for (const t of towers) drawTower(t);
+
+    // units
+    for (const u of units) drawUnit(u);
+    for (const m of minions) drawUnit(m);
+
+    // projectiles
+    for (const p of projectiles) {
+      ctx.fillStyle = p.team === teams.BLUE ? '#5fb4ff' : '#ff8a8a';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // status text
+    ctx.fillStyle = '#9aa4b2';
+    ctx.font = '12px Segoe UI';
+    if (paused) {
+      ctx.fillStyle = '#ffd166';
+      ctx.font = 'bold 18px Segoe UI';
+      const text = bases.BLUE.hp <= 0 ? 'Red wins!' : bases.RED.hp <= 0 ? 'Blue wins!' : 'Paused';
+      ctx.fillText(text, CFG.mapW/2 - ctx.measureText(text).width/2, CFG.mapH/2);
+    }
+  }
+
+  function drawUnit(u) {
+    const color = u.team === teams.BLUE ? '#4aa3ff' : '#ff6b6b';
+    const alpha = u.dead ? 0.25 : 1;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.radius ?? CFG.hero.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // HP bar
+    const w = 34, h = 5, x = u.x - w/2, y = u.y - (u.radius ?? CFG.hero.radius) - 12;
+    ctx.fillStyle = '#2a313d';
+    ctx.fillRect(x, y, w, h);
+    const pct = clamp(u.hp / (u.maxHP || 1), 0, 1);
+    ctx.fillStyle = '#35d07f';
+    ctx.fillRect(x, y, w * pct, h);
+
+    // Name
+    ctx.fillStyle = '#cfd6e4';
+    ctx.font = '10px Segoe UI';
+    const nm = u.name || 'Hero';
+    ctx.fillText(nm, u.x - ctx.measureText(nm).width/2, y - 4);
+  }
+
+  function drawTower(t) {
+    if (t.dead) ctx.globalAlpha = 0.25;
+    ctx.fillStyle = t.team === teams.BLUE ? '#3b6fff' : '#ff5a5a';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, CFG.tower.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // HP
+    const w = 40, h = 6, x = t.x - w/2, y = t.y - CFG.tower.radius - 12;
+    ctx.fillStyle = '#2a313d';
+    ctx.fillRect(x, y, w, h);
+    const pct = clamp(t.hp / CFG.tower.hp, 0, 1);
+    ctx.fillStyle = '#35d07f';
+    ctx.fillRect(x, y, w * pct, h);
+  }
+
+  function drawBase(b, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(b.x - 28, b.y - 28);
+    ctx.lineTo(b.x + 28, b.y - 28);
+    ctx.lineTo(b.x + 28, b.y + 28);
+    ctx.lineTo(b.x - 28, b.y + 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // HP text
+    ctx.fillStyle = '#cfd6e4';
+    ctx.font = '12px Segoe UI';
+    const text = `${b.team} Base HP: ${Math.max(0, Math.round(b.hp))}`;
+    ctx.fillText(text, b.x - 50, b.y + 48);
+  }
+
+  // ---- HUD update ----
+  function updateHUD() {
+    HUD.heroName.textContent = player.name;
+    HUD.heroLevel.textContent = '1';
+    HUD.heroGold.textContent = player.gold.toString();
+    HUD.heroKDA.textContent = `${player.kills}/${player.deaths}/${player.assists}`;
+    HUD.heroHPLabel.textContent = `${Math.round(player.hp)} / ${player.maxHP}`;
+    HUD.heroManaLabel.textContent = `${Math.round(player.mana)} / ${player.maxMana}`;
+
+    HUD.heroHPBar.style.width = `${clamp(player.hp / player.maxHP, 0, 1) * 100}%`;
+    HUD.heroManaBar.style.width = `${clamp(player.mana / player.maxMana, 0, 1) * 100}%`;
+
+    HUD.blueKills.textContent = blueKills.toString();
+    HUD.redKills.textContent = redKills.toString();
+    HUD.blueBaseHP.textContent = Math.max(0, Math.round(bases.BLUE.hp)).toString();
+    HUD.redBaseHP.textContent = Math.max(0, Math.round(bases.RED.hp)).toString();
+
+    // Clock
+    const t = Math.floor((now() - matchStart) / 1000);
+    const mm = String(Math.floor(t / 60)).padStart(2, '0');
+    const ss = String(t % 60).padStart(2, '0');
+    HUD.clock.textContent = `${mm}:${ss}`;
+
+    // Scoreboards
+    HUD.blueBoard.innerHTML = '';
+    HUD.redBoard.innerHTML = '';
+    const blueTeam = units.filter(u => u.team === teams.BLUE);
+    const redTeam = units.filter(u => u.team === teams.RED);
+    for (const u of blueTeam) {
+      const div = document.createElement('div');
+      div.textContent = `${u.name}: ${Math.round(u.hp)}/${u.maxHP} HP — ${u.kills}/${u.deaths}/${u.assists}`;
+      HUD.blueBoard.appendChild(div);
+    }
+    for (const u of redTeam) {
+      const div = document.createElement('div');
+      div.textContent = `${u.name}: ${Math.round(u.hp)}/${u.maxHP} HP — ${u.kills}/${u.deaths}/${u.assists}`;
+      HUD.redBoard.appendChild(div);
+    }
+  }
+
+  // ---- Main loop ----
+  function loop() {
+    const t = now();
+    const dt = clamp((t - prev) / 16.6667, 0, 2); // dt ~ frames
+    prev = t;
+    if (!paused) {
+      update(dt);
+    }
+    draw();
+    updateHUD();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
